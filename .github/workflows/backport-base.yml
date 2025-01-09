@@ -18,7 +18,7 @@ on:
         description: 'A comma-separated list of repository owners where the workflow will run. Defaults to "dotnet,microsoft".'
         required: false
         type: string
-        default: 'dotnet,microsoft'
+        default: 'dotnet,Youssef1313,microsoft'
 
 jobs:
   cleanup:
