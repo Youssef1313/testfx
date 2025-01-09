@@ -1,8 +1,6 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Globalization;
-
 using FluentAssertions;
 
 using Microsoft.MSTestV2.CLIAutomation;
@@ -18,7 +16,7 @@ public class OutputTests : CLITestBase
 
     public void OutputIsNotMixedWhenAsyncTestsRunInParallel() => ValidateOutputForClass("UnitTest2");
 
-    private void ValidateOutputForClass(string className)
+    private static void ValidateOutputForClass(string className)
     {
         // LogMessageListener uses an implementation of a string writer that captures output per async context.
         // This allows us to capture output from tasks even when they are running in parallel.
