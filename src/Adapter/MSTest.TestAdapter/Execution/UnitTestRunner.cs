@@ -179,8 +179,22 @@ internal sealed class UnitTestRunner : MarshalByRefObject
                     {
                         // Run the test method
                         testContextForTestExecution.SetOutcome(testContextForClassInit.Context.CurrentTestOutcome);
+                        int retryCount = testMethodInfo.MaxRetries;
+                        UTF.UnitTestOutcome outcomeBeforeRunning = testContextForTestExecution.Context.CurrentTestOutcome;
                         var testMethodRunner = new TestMethodRunner(testMethodInfo, testMethod, testContextForTestExecution);
                         result = testMethodRunner.Execute(classInitializeResult.StandardOut!, classInitializeResult.StandardError!, classInitializeResult.DebugTrace!, classInitializeResult.TestContextMessages!);
+                        if (retryCount > 1 && !IsAcceptableResultForRetry(result))
+                        {
+                            for (int i = 1; i < retryCount; i++)
+                            {
+                                testContextForTestExecution.SetOutcome(outcomeBeforeRunning);
+                                result = testMethodRunner.Execute(classInitializeResult.StandardOut!, classInitializeResult.StandardError!, classInitializeResult.DebugTrace!, classInitializeResult.TestContextMessages!);
+                                if (IsAcceptableResultForRetry(result))
+                                {
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -200,6 +214,20 @@ internal sealed class UnitTestRunner : MarshalByRefObject
             // Catch any exception thrown while inspecting the test method and return failure.
             return [new(UnitTestOutcome.Failed, ex.Message)];
         }
+    }
+
+    private static bool IsAcceptableResultForRetry(UnitTestResult[] results)
+    {
+        foreach (UnitTestResult result in results)
+        {
+            UnitTestOutcome outcome = result.Outcome;
+            if (outcome is UnitTestOutcome.Failed or UnitTestOutcome.Timeout)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static UnitTestResult RunAssemblyInitializeIfNeeded(TestMethodInfo testMethodInfo, ITestContext testContext)

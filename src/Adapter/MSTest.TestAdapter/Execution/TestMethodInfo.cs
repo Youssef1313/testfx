@@ -46,6 +46,7 @@ public class TestMethodInfo : ITestMethod
         Parent = parent;
         TestMethodOptions = testMethodOptions;
         ExpectedException = ResolveExpectedException();
+        MaxRetries = GetMaxRetries();
     }
 
     /// <summary>
@@ -91,6 +92,8 @@ public class TestMethodInfo : ITestMethod
     internal TestMethodOptions TestMethodOptions { get; }
 
     internal ExpectedExceptionBaseAttribute? ExpectedException { get; set; /*set for testing only*/ }
+
+    internal int MaxRetries { get; }
 
     public Attribute[]? GetAllAttributes(bool inherit) => ReflectHelper.Instance.GetDerivedAttributes<Attribute>(TestMethod, inherit).ToArray();
 
@@ -258,6 +261,20 @@ public class TestMethodInfo : ITestMethod
         }
 
         return expectedExceptions.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Gets the number of retries this test method should make in case of failure.
+    /// </summary>
+    /// <returns>
+    /// The number of retries, which is always greater than or equal to 1.
+    /// If RetryAttribute is not present, returns 1.
+    /// </returns>
+    private int GetMaxRetries()
+    {
+        RetryAttribute? retryAttribute = ReflectHelper.Instance.GetFirstNonDerivedAttributeOrDefault<RetryAttribute>(TestMethod, inherit: true);
+        int maxRetries = retryAttribute?.MaxRetries ?? 1;
+        return maxRetries >= 1 ? maxRetries : throw new ArgumentOutOfRangeException(nameof(maxRetries));
     }
 
     /// <summary>
