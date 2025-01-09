@@ -93,7 +93,7 @@ public class TestMethodInfo : ITestMethod
 
     internal ExpectedExceptionBaseAttribute? ExpectedException { get; set; /*set for testing only*/ }
 
-    internal int MaxRetries { get; }
+    internal RetryAttribute? RetryAttribute { get; }
 
     public Attribute[]? GetAllAttributes(bool inherit) => ReflectHelper.Instance.GetDerivedAttributes<Attribute>(TestMethod, inherit).ToArray();
 
@@ -270,12 +270,8 @@ public class TestMethodInfo : ITestMethod
     /// The number of retries, which is always greater than or equal to 1.
     /// If RetryAttribute is not present, returns 1.
     /// </returns>
-    private int GetMaxRetries()
-    {
-        RetryAttribute? retryAttribute = ReflectHelper.Instance.GetFirstNonDerivedAttributeOrDefault<RetryAttribute>(TestMethod, inherit: true);
-        int maxRetries = retryAttribute?.MaxRetries ?? 1;
-        return maxRetries >= 1 ? maxRetries : throw new ArgumentOutOfRangeException(nameof(maxRetries));
-    }
+    private RetryAttribute? GetRetryAttribute()
+        => ReflectHelper.Instance.GetFirstDerivedAttributeOrDefault<RetryAttribute>(TestMethod, inherit: true);
 
     /// <summary>
     /// Execute test without timeout.

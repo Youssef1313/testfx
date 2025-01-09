@@ -39,7 +39,7 @@ public class TestExecutionManager
     /// </summary>
     private readonly IDictionary<string, object> _sessionParameters;
     private readonly IEnvironment _environment;
-    private readonly Func<Action, Task> _taskFactory;
+    private readonly Func<Func<Task>, Task> _taskFactory;
 
     /// <summary>
     /// Specifies whether the test run is canceled or not.
@@ -51,7 +51,7 @@ public class TestExecutionManager
     {
     }
 
-    internal TestExecutionManager(IEnvironment environment, Func<Action, Task>? taskFactory = null)
+    internal TestExecutionManager(IEnvironment environment, Func<Func<Task>, Task>? taskFactory = null)
     {
         _testMethodFilter = new TestMethodFilter();
         _sessionParameters = new Dictionary<string, object>();
@@ -59,7 +59,7 @@ public class TestExecutionManager
         _taskFactory = taskFactory ?? DefaultFactoryAsync;
     }
 
-    private static Task DefaultFactoryAsync(Action action)
+    private static Task DefaultFactoryAsync(Func<Task> taskGetter)
     {
         if (MSTestSettings.RunConfigurationSettings.ExecutionApartmentState == ApartmentState.STA
             && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -69,7 +69,10 @@ public class TestExecutionManager
             {
                 try
                 {
-                    action();
+                    // IMPORTANT::: We should find a different way.
+                    // BETTER TO NOT MERGE AS IS!!!
+                    Task task = taskGetter();
+                    task.GetAwaiter().GetResult();
                     tcs.SetResult(0);
                 }
                 catch (Exception ex)
@@ -84,7 +87,7 @@ public class TestExecutionManager
         }
         else
         {
-            return Task.Run(action);
+            return taskGetter();
         }
     }
 
@@ -121,7 +124,9 @@ public class TestExecutionManager
         CacheSessionParameters(runContext, frameworkHandle);
 
         // Execute the tests
-        ExecuteTests(tests, runContext, frameworkHandle, isDeploymentDone);
+        // This is a public API, so we can't change it to be async.
+        // Consider not using this API internally, and introduce an async version, and mark this as obsolete.
+        ExecuteTestsAsync(tests, runContext, frameworkHandle, isDeploymentDone).GetAwaiter().GetResult();
 
         if (!_hasAnyTestFailed)
         {
@@ -159,7 +164,9 @@ public class TestExecutionManager
         CacheSessionParameters(runContext, frameworkHandle);
 
         // Run tests.
-        ExecuteTests(tests, runContext, frameworkHandle, isDeploymentDone);
+        // This is a public API, so we can't change it to be async.
+        // Consider not using this API internally, and introduce an async version, and mark this as obsolete.
+        ExecuteTestsAsync(tests, runContext, frameworkHandle, isDeploymentDone).GetAwaiter().GetResult();
 
         if (!_hasAnyTestFailed)
         {
@@ -174,7 +181,9 @@ public class TestExecutionManager
     /// <param name="runContext">The run context.</param>
     /// <param name="frameworkHandle">Handle to record test start/end/results.</param>
     /// <param name="isDeploymentDone">Indicates if deployment is done.</param>
-    internal virtual void ExecuteTests(IEnumerable<TestCase> tests, IRunContext? runContext, IFrameworkHandle frameworkHandle, bool isDeploymentDone)
+    // TODO: In most cases this will complete synchronously.
+    // Consider using ValueTask.
+    internal virtual async Task ExecuteTestsAsync(IEnumerable<TestCase> tests, IRunContext? runContext, IFrameworkHandle frameworkHandle, bool isDeploymentDone)
     {
         var testsBySource = from test in tests
                             group test by test.Source into testGroup
@@ -183,7 +192,7 @@ public class TestExecutionManager
         foreach (var group in testsBySource)
         {
             _testRunCancellationToken?.ThrowIfCancellationRequested();
-            ExecuteTestsInSource(group.Tests, runContext, frameworkHandle, group.Source, isDeploymentDone);
+            await ExecuteTestsInSourceAsync(group.Tests, runContext, frameworkHandle, group.Source, isDeploymentDone);
         }
     }
 
@@ -257,7 +266,9 @@ public class TestExecutionManager
     /// <param name="frameworkHandle">Handle to record test start/end/results.</param>
     /// <param name="source">The test container for the tests.</param>
     /// <param name="isDeploymentDone">Indicates if deployment is done.</param>
-    private void ExecuteTestsInSource(IEnumerable<TestCase> tests, IRunContext? runContext, IFrameworkHandle frameworkHandle, string source, bool isDeploymentDone)
+    // TODO: In most cases this will complete synchronously.
+    // Consider using ValueTask.
+    private async Task ExecuteTestsInSourceAsync(IEnumerable<TestCase> tests, IRunContext? runContext, IFrameworkHandle frameworkHandle, string source, bool isDeploymentDone)
     {
         DebugEx.Assert(!StringEx.IsNullOrEmpty(source), "Source cannot be empty");
 
@@ -363,7 +374,7 @@ public class TestExecutionManager
                 {
                     _testRunCancellationToken?.ThrowIfCancellationRequested();
 
-                    tasks.Add(_taskFactory(() =>
+                    tasks.Add(_taskFactory(async () =>
                     {
                         try
                         {
@@ -373,7 +384,7 @@ public class TestExecutionManager
 
                                 if (queue.TryDequeue(out IEnumerable<TestCase>? testSet))
                                 {
-                                    ExecuteTestsWithTestRunner(testSet, frameworkHandle, source, sourceLevelParameters, testRunner);
+                                    await ExecuteTestsWithTestRunnerAsync(testSet, frameworkHandle, source, sourceLevelParameters, testRunner);
                                 }
                             }
                         }
@@ -385,7 +396,7 @@ public class TestExecutionManager
 
                 try
                 {
-                    Task.WaitAll(tasks.ToArray());
+                    await Task.WhenAll(tasks);
                 }
                 catch (Exception ex)
                 {
@@ -399,12 +410,12 @@ public class TestExecutionManager
             // Queue the non parallel set
             if (nonParallelizableTestSet != null)
             {
-                ExecuteTestsWithTestRunner(nonParallelizableTestSet, frameworkHandle, source, sourceLevelParameters, testRunner);
+                await ExecuteTestsWithTestRunnerAsync(nonParallelizableTestSet, frameworkHandle, source, sourceLevelParameters, testRunner);
             }
         }
         else
         {
-            ExecuteTestsWithTestRunner(testsToRun, frameworkHandle, source, sourceLevelParameters, testRunner);
+            await ExecuteTestsWithTestRunnerAsync(testsToRun, frameworkHandle, source, sourceLevelParameters, testRunner);
         }
 
         if (PlatformServiceProvider.Instance.IsGracefulStopRequested)
@@ -415,7 +426,9 @@ public class TestExecutionManager
         PlatformServiceProvider.Instance.AdapterTraceLogger.LogInfo("Executed tests belonging to source {0}", source);
     }
 
-    private void ExecuteTestsWithTestRunner(
+    // TODO: In most cases this will complete synchronously.
+    // Consider using ValueTask.
+    private async Task ExecuteTestsWithTestRunnerAsync(
         IEnumerable<TestCase> tests,
         ITestExecutionRecorder testExecutionRecorder,
         string source,
@@ -462,7 +475,7 @@ public class TestExecutionManager
 
             // testRunner could be in a different AppDomain. We cannot pass the testExecutionRecorder directly.
             // Instead, we pass a proxy (remoting object) that is marshallable by ref.
-            UnitTestResult[] unitTestResult = testRunner.RunSingleTest(unitTestElement.TestMethod, testContextProperties, remotingMessageLogger);
+            UnitTestResult[] unitTestResult = await testRunner.RunSingleTestAsync(unitTestElement.TestMethod, testContextProperties, remotingMessageLogger);
 
             PlatformServiceProvider.Instance.AdapterTraceLogger.LogInfo("Executed test {0}", unitTestElement.TestMethod.Name);
 

@@ -61,15 +61,11 @@ public class TestExecutionManagerTests : TestContainer
 
         _testExecutionManager = new TestExecutionManager(
             new EnvironmentWrapper(),
-            action => Task.Factory.StartNew(
-                () =>
-                {
-                    _enqueuedParallelTestsCount++;
-                    action();
-                },
-                CancellationToken.None,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default));
+            task =>
+            {
+                _enqueuedParallelTestsCount++;
+                return task;
+            });
     }
 
     protected override void Dispose(bool disposing)

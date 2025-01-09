@@ -128,7 +128,10 @@ internal sealed class UnitTestRunner : MarshalByRefObject
     /// <param name="testMethod"> The test Method. </param>
     /// <param name="testContextProperties"> The test context properties. </param>
     /// <returns> The <see cref="UnitTestResult"/>. </returns>
-    internal UnitTestResult[] RunSingleTest(TestMethod testMethod, IDictionary<string, object?> testContextProperties, IMessageLogger messageLogger)
+    // TODO: In most cases this will complete synchronously.
+    // The async code is for retry only.
+    // Consider using ValueTask
+    internal async Task<UnitTestResult[]> RunSingleTestAsync(TestMethod testMethod, IDictionary<string, object?> testContextProperties, IMessageLogger messageLogger)
     {
         Guard.NotNull(testMethod);
 
@@ -179,21 +182,19 @@ internal sealed class UnitTestRunner : MarshalByRefObject
                     {
                         // Run the test method
                         testContextForTestExecution.SetOutcome(testContextForClassInit.Context.CurrentTestOutcome);
-                        int retryCount = testMethodInfo.MaxRetries;
-                        UTF.UnitTestOutcome outcomeBeforeRunning = testContextForTestExecution.Context.CurrentTestOutcome;
+                        RetryAttribute? retryAttribute = testMethodInfo.RetryAttribute;
                         var testMethodRunner = new TestMethodRunner(testMethodInfo, testMethod, testContextForTestExecution);
                         result = testMethodRunner.Execute(classInitializeResult.StandardOut!, classInitializeResult.StandardError!, classInitializeResult.DebugTrace!, classInitializeResult.TestContextMessages!);
-                        if (retryCount > 1 && !IsAcceptableResultForRetry(result))
+                        if (retryAttribute is not null && !IsAcceptableResultForRetry(result))
                         {
-                            for (int i = 1; i < retryCount; i++)
-                            {
-                                testContextForTestExecution.SetOutcome(outcomeBeforeRunning);
-                                result = testMethodRunner.Execute(classInitializeResult.StandardOut!, classInitializeResult.StandardError!, classInitializeResult.DebugTrace!, classInitializeResult.TestContextMessages!);
-                                if (IsAcceptableResultForRetry(result))
-                                {
-                                    break;
-                                }
-                            }
+                            await retryAttribute.ExecuteAsync(
+                                new RetryContext(
+                                    () => Task.FromResult(
+                                        testMethodRunner.Execute(
+                                            classInitializeResult.StandardOut!,
+                                            classInitializeResult.StandardError!,
+                                            classInitializeResult.DebugTrace!,
+                                            classInitializeResult.TestContextMessages!))));
                         }
                     }
                 }

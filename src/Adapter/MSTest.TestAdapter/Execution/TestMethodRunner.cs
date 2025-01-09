@@ -172,6 +172,7 @@ internal sealed class TestMethodRunner
         {
             if (_test.TestDataSourceIgnoreMessage is not null)
             {
+                _testContext.SetOutcome(UTF.UnitTestOutcome.Ignored);
                 return [new(UnitTestOutcome.Ignored, _test.TestDataSourceIgnoreMessage)];
             }
 
