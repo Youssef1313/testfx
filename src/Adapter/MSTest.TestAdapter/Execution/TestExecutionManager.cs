@@ -69,8 +69,7 @@ public class TestExecutionManager
             {
                 try
                 {
-                    // IMPORTANT::: We should find a different way.
-                    // BETTER TO NOT MERGE AS IS!!!
+                    // This is best we can do to execute in STA thread.
                     Task task = taskGetter();
                     task.GetAwaiter().GetResult();
                     tcs.SetResult(0);

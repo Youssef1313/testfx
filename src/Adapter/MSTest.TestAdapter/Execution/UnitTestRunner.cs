@@ -6,6 +6,7 @@ using System.Security;
 using Microsoft.VisualStudio.TestPlatform.MSTest.TestAdapter.Extensions;
 using Microsoft.VisualStudio.TestPlatform.MSTest.TestAdapter.Helpers;
 using Microsoft.VisualStudio.TestPlatform.MSTest.TestAdapter.ObjectModel;
+using Microsoft.VisualStudio.TestPlatform.MSTestAdapter;
 using Microsoft.VisualStudio.TestPlatform.MSTestAdapter.PlatformServices;
 using Microsoft.VisualStudio.TestPlatform.MSTestAdapter.PlatformServices.Interface;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Logging;
@@ -185,9 +186,9 @@ internal sealed class UnitTestRunner : MarshalByRefObject
                         RetryAttribute? retryAttribute = testMethodInfo.RetryAttribute;
                         var testMethodRunner = new TestMethodRunner(testMethodInfo, testMethod, testContextForTestExecution);
                         result = testMethodRunner.Execute(classInitializeResult.StandardOut!, classInitializeResult.StandardError!, classInitializeResult.DebugTrace!, classInitializeResult.TestContextMessages!);
-                        if (retryAttribute is not null && !IsAcceptableResultForRetry(result))
+                        if (retryAttribute is not null && !RetryAttribute.IsAcceptableResultForRetry(result))
                         {
-                            await retryAttribute.ExecuteAsync(
+                            RetryResult retryResult = await retryAttribute.ExecuteAsync(
                                 new RetryContext(
                                     () => Task.FromResult(
                                         testMethodRunner.Execute(
@@ -195,6 +196,8 @@ internal sealed class UnitTestRunner : MarshalByRefObject
                                             classInitializeResult.StandardError!,
                                             classInitializeResult.DebugTrace!,
                                             classInitializeResult.TestContextMessages!))));
+
+                            result = lastResult ?? throw ApplicationStateGuard.Unreachable();
                         }
                     }
                 }
@@ -215,20 +218,6 @@ internal sealed class UnitTestRunner : MarshalByRefObject
             // Catch any exception thrown while inspecting the test method and return failure.
             return [new(UnitTestOutcome.Failed, ex.Message)];
         }
-    }
-
-    private static bool IsAcceptableResultForRetry(UnitTestResult[] results)
-    {
-        foreach (UnitTestResult result in results)
-        {
-            UnitTestOutcome outcome = result.Outcome;
-            if (outcome is UnitTestOutcome.Failed or UnitTestOutcome.Timeout)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static UnitTestResult RunAssemblyInitializeIfNeeded(TestMethodInfo testMethodInfo, ITestContext testContext)
