@@ -240,6 +240,11 @@ internal class AssemblyEnumerator : MarshalByRefObject
                         {
                             continue;
                         }
+
+                        if (TryUnfoldValuesAttributes(test, testMethodInfo, dataSourcesUnfoldingStrategy, tests))
+                        {
+                            continue;
+                        }
                     }
 
                     tests.Add(test);
@@ -476,6 +481,106 @@ internal class AssemblyEnumerator : MarshalByRefObject
 
             discoveredTests.Add(discoveredTest);
             testDisplayNameFirstSeen[discoveredTest.DisplayName!] = index++;
+        }
+
+        tests.AddRange(discoveredTests);
+
+        return true;
+    }
+
+    private static IEnumerable<object?[]> FillCombinations(object?[][] candidateValues, object?[] currentValues, int index)
+    {
+        foreach (object? value in candidateValues[index])
+        {
+            currentValues[index] = value;
+
+            if (index + 1 < currentValues.Length)
+            {
+                foreach (object?[] result in FillCombinations(candidateValues, currentValues, index + 1))
+                {
+                    yield return result;
+                }
+            }
+            else
+            {
+                // We're the tail end, so just produce the value.
+                // Copy the array before returning since we're about to mutate currentValues
+                yield return currentValues.ToArray();
+            }
+        }
+    }
+
+    private static bool TryUnfoldValuesAttributes(UnitTestElement test, TestMethodInfo testMethodInfo, TestDataSourceUnfoldingStrategy dataSourcesUnfoldingStrategy, List<UnitTestElement> tests)
+    {
+        if (dataSourcesUnfoldingStrategy == TestDataSourceUnfoldingStrategy.Fold)
+        {
+            return false;
+        }
+
+        MethodInfo methodInfo = testMethodInfo.MethodInfo;
+        ParameterInfo[] parameters = methodInfo.GetParameters();
+        if (parameters.Length == 0)
+        {
+            return false;
+        }
+
+        if (ReflectHelper.Instance.GetFirstNonDerivedAttributeOrDefault<ValuesAttribute>(parameters[0], inherit: true) is not { } firstValuesAttribute)
+        {
+            return false;
+        }
+
+        object?[][] values = new object?[parameters.Length][];
+        values[0] = firstValuesAttribute.Values;
+        for (int i = 1; i < parameters.Length; i++)
+        {
+            if (ReflectHelper.Instance.GetFirstNonDerivedAttributeOrDefault<ValuesAttribute>(parameters[i], inherit: true) is not { } valuesAttribute)
+            {
+                throw new InvalidOperationException();
+            }
+
+            values[i] = valuesAttribute.Values;
+        }
+
+        object[]? currentValues = new object[parameters.Length];
+        IEnumerable<object?[]> data = FillCombinations(values, currentValues, 0);
+        if (!data.Any())
+        {
+            if (!MSTestSettings.CurrentSettings.ConsiderEmptyDataSourceAsInconclusive)
+            {
+                // TODO: throw?
+            }
+
+            tests.Add(test);
+            return true;
+        }
+
+        var discoveredTests = new List<UnitTestElement>();
+        int index = 0;
+
+        foreach (object?[] d in data)
+        {
+            UnitTestElement discoveredTest = test.Clone();
+            // Modify DisplayName?
+            // Id generation strategy?
+            try
+            {
+                discoveredTest.TestMethod.SerializedData = DataSerializationHelper.Serialize(d);
+                // It's not really an ITestDataSource. Try to refactor so that the code makes better sense and is not just magically working...
+                discoveredTest.TestMethod.DataType = DynamicDataType.ITestDataSource;
+            }
+            catch (SerializationException ex)
+            {
+                string warning = string.Format(CultureInfo.CurrentCulture, Resource.CannotExpandIDataSourceAttribute_CannotSerialize, index, discoveredTest.DisplayName);
+                warning += Environment.NewLine;
+                warning += ex.ToString();
+                warning = string.Format(CultureInfo.CurrentCulture, Resource.CannotExpandIDataSourceAttribute, test.TestMethod.ManagedTypeName, test.TestMethod.ManagedMethodName, warning);
+                PlatformServiceProvider.Instance.AdapterTraceLogger.LogWarning($"DynamicDataEnumerator: {warning}");
+
+                // Serialization failed for the type, bail out. Caller will handle adding the original test.
+                return false;
+            }
+
+            discoveredTests.Add(discoveredTest);
         }
 
         tests.AddRange(discoveredTests);

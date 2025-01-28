@@ -440,9 +440,12 @@ internal class ReflectHelper : MarshalByRefObject
         /// <returns>All attributes of give type on member.</returns>
         public static object[]? GetCustomAttributesNotCached(ICustomAttributeProvider attributeProvider, bool inherit)
         {
-            object[] attributesArray = attributeProvider is MemberInfo memberInfo
-                ? PlatformServiceProvider.Instance.ReflectionOperations.GetCustomAttributes(memberInfo, inherit)
-                : PlatformServiceProvider.Instance.ReflectionOperations.GetCustomAttributes((Assembly)attributeProvider, typeof(Attribute));
+            object[] attributesArray = attributeProvider switch
+            {
+                MemberInfo memberInfo => PlatformServiceProvider.Instance.ReflectionOperations.GetCustomAttributes(memberInfo, inherit),
+                ParameterInfo parameterInfo => PlatformServiceProvider.Instance.ReflectionOperations.GetCustomAttributes(parameterInfo, inherit),
+                _ => PlatformServiceProvider.Instance.ReflectionOperations.GetCustomAttributes((Assembly)attributeProvider, typeof(Attribute)),
+            };
 
             return attributesArray; // TODO: Investigate if we rely on NRE
         }

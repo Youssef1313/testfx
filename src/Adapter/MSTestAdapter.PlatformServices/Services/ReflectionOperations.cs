@@ -43,6 +43,20 @@ public class ReflectionOperations : IReflectionOperations
     }
 #endif
 
+    /// <inheritdoc />
+    [return: NotNullIfNotNull(nameof(parameterInfo))]
+    public object[]? GetCustomAttributes(ParameterInfo parameterInfo, bool inherit)
+    {
+        object[] attributes = parameterInfo.GetCustomAttributes(typeof(Attribute), inherit);
+
+        // Ensures that when the return of this method is used here:
+        // https://github.com/microsoft/testfx/blob/e101a9d48773cc935c7b536d25d378d9a3211fee/src/Adapter/MSTest.TestAdapter/Helpers/ReflectHelper.cs#L461
+        // then we are already Attribute[] to avoid LINQ Cast and extra array allocation.
+        // This assert is solely for performance. Nothing "functional" will go wrong if the assert failed.
+        Debug.Assert(attributes is Attribute[], $"Expected Attribute[], found '{attributes.GetType()}'.");
+        return attributes;
+    }
+
     /// <summary>
     /// Gets all the custom attributes of a given type adorned on a member.
     /// </summary>

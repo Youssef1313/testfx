@@ -25,6 +25,15 @@ public interface IReflectionOperations
     object[]? GetCustomAttributes(MemberInfo memberInfo, bool inherit);
 
     /// <summary>
+    /// Gets all the custom attributes adorned on a parameter.
+    /// </summary>
+    /// <param name="parameterInfo"> The parameter. </param>
+    /// <param name="inherit"> True to inspect the ancestors of element; otherwise, false. </param>
+    /// <returns> The list of attributes on the member. Empty list if none found. </returns>
+    [return: NotNullIfNotNull(nameof(parameterInfo))]
+    object[]? GetCustomAttributes(ParameterInfo parameterInfo, bool inherit);
+
+    /// <summary>
     /// Gets all the custom attributes of a given type adorned on a member.
     /// </summary>
     /// <param name="memberInfo"> The member info. </param>

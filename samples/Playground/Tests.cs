@@ -15,8 +15,7 @@ public class TestClass
     public TestContext TestContext { get; set; }
 
     [TestMethod]
-    [DynamicData(nameof(Data))]
-    public void Test3(int a, int b)
+    public void Test3([Values(0, 1, 2)] int a, [Values(3, 4, 5)] int b)
         => Assert.AreNotEqual(a, b);
 
     public static IEnumerable<(int A, int B)> Data
