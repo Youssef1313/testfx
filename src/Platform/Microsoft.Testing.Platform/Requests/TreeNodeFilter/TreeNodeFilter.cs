@@ -36,11 +36,11 @@ public sealed class TreeNodeFilter : ITestExecutionFilter
     /// <remarks>
     /// The current grammar for the filter looks as follows:
     /// <code>
-    /// TREE_NODE_FILTER = EXPR ( '/' EXPR )*
+    /// TREE_NODE_FILTER = EXPR ( '/' EXPR )* PROPERTY_EXPRESSION?
     /// EXPR =
     ///   '(' EXPR ')'
     ///   | EXPR OP EXPR
-    ///   | NODE_VALUE
+    ///   | TOKEN
     /// FILTER_EXPR =
     ///   '(' FILTER_EXPR ')'
     ///   | TOKEN '=' TOKEN
@@ -48,7 +48,7 @@ public sealed class TreeNodeFilter : ITestExecutionFilter
     ///   | FILTER_EXPR OP FILTER_EXPR
     ///   | TOKEN
     /// OP = '&amp;' | '|'
-    /// NODE_VALUE = TOKEN | TOKEN '[' FILTER_EXPR ']'
+    /// PROPERTY_EXPRESSION = '[' FILTER_EXPR ']'
     /// TOKEN = string
     /// </code>
     /// </remarks>
