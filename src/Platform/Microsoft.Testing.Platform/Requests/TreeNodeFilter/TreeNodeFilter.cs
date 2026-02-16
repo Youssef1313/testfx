@@ -36,7 +36,7 @@ public sealed class TreeNodeFilter : ITestExecutionFilter
     /// <remarks>
     /// The current grammar for the filter looks as follows:
     /// <code>
-    /// TREE_NODE_FILTER = EXPR ( '/' EXPR )* PROPERTY_EXPRESSION?
+    /// TREE_NODE_FILTER = ( '/' EXPR )+ PROPERTY_EXPRESSION?
     /// EXPR =
     ///   '(' EXPR ')'
     ///   | EXPR OP EXPR
