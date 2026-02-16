@@ -41,14 +41,14 @@ public sealed class TreeNodeFilter : ITestExecutionFilter
     ///   '(' EXPR ')'
     ///   | EXPR OP EXPR
     ///   | TOKEN
+    /// OP = '&amp;' | '|'
+    /// PROPERTY_EXPRESSION = '[' FILTER_EXPR ']'
     /// FILTER_EXPR =
     ///   '(' FILTER_EXPR ')'
     ///   | TOKEN '=' TOKEN
     ///   | TOKEN '!=' TOKEN
     ///   | FILTER_EXPR OP FILTER_EXPR
     ///   | TOKEN
-    /// OP = '&amp;' | '|'
-    /// PROPERTY_EXPRESSION = '[' FILTER_EXPR ']'
     /// TOKEN = string
     /// </code>
     /// </remarks>
